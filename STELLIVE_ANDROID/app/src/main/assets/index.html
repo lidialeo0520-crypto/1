@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>STELLIVE STAR COLLECTOR v6</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+#wrap{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+canvas{background:linear-gradient(#111a35,#080b18);border:2px solid #39466f;max-width:100vw;max-height:100vh;touch-action:none}
+.panel{position:absolute;inset:0;background:rgba(4,7,16,.92);display:none;padding:22px;overflow:auto}
+.panel.show{display:block}.box{max-width:900px;margin:auto;background:#121a31;border:1px solid #3c4b78;border-radius:16px;padding:18px}
+button{border:0;border-radius:10px;padding:10px 14px;background:#26365e;color:white;font-weight:700;cursor:pointer;margin:4px}
+button:hover{filter:brightness(1.15)}.close{float:right}
+h1,h2{margin-top:4px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.card{background:#1a2440;border:1px solid #3c4b78;border-radius:12px;padding:12px}
+.small{font-size:13px;color:#b9c3df}.rare{color:#ffd36e}.danger{color:#ff8b8b}.good{color:#8ff0bd}
+#hud{position:fixed;top:8px;left:8px;right:8px;display:flex;gap:7px;flex-wrap:wrap;pointer-events:none;z-index:2}
+.pill{background:rgba(10,15,32,.82);border:1px solid #405078;border-radius:9px;padding:6px 9px;font-size:13px}
+#buttons{position:fixed;right:8px;top:8px;z-index:3}
+#msg{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:rgba(7,10,22,.92);border:1px solid #596b9e;border-radius:10px;padding:9px 13px;display:none;z-index:4;max-width:90vw;text-align:center}
+#gameOverControls{position:fixed;left:50%;top:50%;transform:translate(-50%,90px);display:none;z-index:6;white-space:nowrap;text-align:center;pointer-events:auto}
+#gameOverControls button{font-size:18px;padding:12px 24px;min-width:110px}
+.shopItem{display:flex;justify-content:space-between;align-items:center;gap:10px}
+@media (orientation: portrait) and (max-width: 700px){
+ #hud{top:6px;left:6px;right:6px;gap:4px;max-width:calc(100vw - 12px)}
+ #hud .pill{font-size:11px;padding:5px 7px}
+ #buttons{top:auto;right:auto;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);width:100%;display:flex;justify-content:center;flex-wrap:wrap;gap:2px;padding:0 4px}
+ #buttons button{font-size:12px;padding:8px 9px;margin:2px;white-space:nowrap}
+ #msg{bottom:68px}
+ #gameOverControls{transform:translate(-50%,50px)}
+}
+
+/* v18: portrait HUD spacing fix */
+@media (orientation: portrait) and (max-width: 700px){
+ #hud{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:5px;max-width:none;width:auto;right:6px;left:6px;top:6px}
+ #hud .pill{min-width:0;max-width:100%;font-size:clamp(10px,2.8vw,12px);line-height:1.25;padding:5px 7px;white-space:normal;overflow-wrap:anywhere}
+ #hud #effect,#hud #ability{grid-column:1 / -1;width:100%}
+ #buttons{bottom:max(8px,env(safe-area-inset-bottom));gap:3px}
+ #buttons button{font-size:clamp(10px,3vw,12px);padding:7px 8px;margin:1px}
+ #msg{bottom:76px}
+}
+</style>
+
+<style id="v13-panel-fix">
+.panel{
+ position:fixed !important;
+ inset:0 !important;
+ z-index:1000 !important;
+ display:none !important;
+ align-items:center !important;
+ justify-content:center !important;
+ padding:72px 16px 24px !important;
+ box-sizing:border-box !important;
+ overflow-y:auto !important;
+ background:rgba(0,0,0,.78) !important;
+}
+.panel.show{
+ display:flex !important;
+}
+.panel .box{
+ position:relative !important;
+ z-index:1001 !important;
+ width:min(92vw,560px) !important;
+ max-height:calc(100vh - 110px) !important;
+ overflow-y:auto !important;
+ box-sizing:border-box !important;
+ margin:0 auto !important;
+ padding:24px !important;
+}
+#settings .box{
+ min-height:260px !important;
+}
+#settings input[type="range"]{
+ position:relative !important;
+ z-index:1003 !important;
+ display:block !important;
+ width:100% !important;
+ height:36px !important;
+ margin:22px 0 !important;
+ cursor:pointer !important;
+ pointer-events:auto !important;
+}
+#settings .close{
+ position:absolute !important;
+ top:12px !important;
+ right:12px !important;
+ z-index:1004 !important;
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="game" width="960" height="600"></canvas>
+</div>
+<div id="hud">
+ <div class="pill">시간 <b id="elapsed">00:00</b></div>
+ <div class="pill">점수 <b id="score">0</b></div>
+ <div class="pill">에너지 <b id="energy">0</b></div>
+ <div class="pill">보유별 <b id="stars">0</b></div>
+ <div class="pill">캐릭터 <b id="char">파스텔</b></div>
+ <div class="pill" id="effect">효과 없음</div><div class="pill" id="ability">능력: 기본</div>
+</div>
+<div id="buttons">
+ <button onclick="openPanel('shop')">상점</button>
+ <button onclick="openPanel('ency')">별 도감</button>
+ <button onclick="openPanel('settings')">설정</button>
+ <button onclick="restart()">재시작</button>
+</div>
+<div id="shop" class="panel"><div class="box"><button class="close" onclick="closePanels()">닫기</button><h1>캐릭터 상점</h1>
+<p class="small">에너지를 소비해 캐릭터를 구매하고 장착합니다. 강지는 100,000 에너지가 필요합니다.</p>
+<div id="shopGrid" class="grid"></div></div></div>
+<div id="ency" class="panel"><div class="box"><button class="close" onclick="closePanels()">닫기</button><h1>별 도감</h1>
+<p class="small">특수별은 같은 종류라도 변칙 이벤트가 발생할 수 있습니다.</p>
+<div id="encyGrid" class="grid"></div></div></div>
+<div id="settings" class="panel"><div class="box"><button class="close" onclick="closePanels()">닫기</button><h1>설정</h1>
+<p class="small">스크린 터치로 캐릭터를 이동할 때의 감도를 조절합니다.</p>
+<div class="card">
+ <div class="shopItem"><b>터치 감도</b><span id="touchSensitivityValue">1.00×</span></div>
+ <input id="touchSensitivity" type="range" min="0.50" max="3.00" step="0.05" value="1.00" style="width:100%;margin:16px 0">
+ <p class="small">0.50× = 느리고 정밀한 이동 / 3.00× = 빠른 이동</p>
+</div>
+</div></div>
+<div id="msg"></div>
+<div id="gameOverControls"><button onclick="restart()">재시작</button><button onclick="openPanel('shop')">상점</button></div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+const keys={};
+let touch={x:W/2,y:H-90,active:false,dx:0,dy:0,lastX:0,lastY:0};
+let touchSensitivity=Number(localStorage.getItem('stelliveTouchSensitivity')||'1');
+if(!Number.isFinite(touchSensitivity))touchSensitivity=1;
+touchSensitivity=Math.max(.5,Math.min(3,touchSensitivity));
+let state={score:0,energy:Number(localStorage.getItem('stelliveEnergy')||0),stars:Number(localStorage.getItem('stelliveStars')||0),
+owned:JSON.parse(localStorage.getItem('stelliveOwned')||'["pastel"]'),character:localStorage.getItem('stelliveCharacter')||'pastel'};
+const chars=[
+{id:'pastel',name:'파스텔',price:0,desc:'기본 캐릭터'},
+{id:'kangji',name:'강지',price:100000,desc:'별 획득량 증가 + 변칙 효과의 위험 완화'},
+{id:'eve',name:'이브',price:220,desc:'일정 확률로 장애물 피해 무효화'},
+{id:'kanna',name:'아이리 칸나',price:230,desc:'짧은 시간 이동속도 증가 · 졸업생 캐릭터'},
+{id:'yuni',name:'아야츠노 유니',price:500,desc:'콤보 유지 시간이 증가'},
+{id:'huya',name:'사키하네 후야',price:550,desc:'별을 먹을 때 짧은 시간 이동속도 증가'},
+{id:'hina',name:'시라유키 히나',price:600,desc:'일정 확률로 일반별 가치 2배'},
+{id:'mashiro',name:'네네코 마시로',price:650,desc:'별을 연속으로 먹으면 추가 에너지'},
+{id:'lize',name:'아카네 리제',price:700,desc:'특수별의 변칙 보너스 발동 확률 증가'},
+{id:'tabi',name:'아라하시 타비',price:750,desc:'장애물 생성 간격이 잠시 증가'},
+{id:'shibuki',name:'텐코 시부키',price:800,desc:'별을 먹을 때 점수 추가 보너스'},
+{id:'rin',name:'아오쿠모 린',price:850,desc:'무지개별의 자석 효과 강화'},
+{id:'riko',name:'유즈하 리코',price:900,desc:'금별의 점수 배율 지속시간 증가'},
+{id:'nana',name:'하나코 나나',price:950,desc:'멤버별 획득 시 추가 에너지 확률 증가'}
+];
+const starsDef={
+normal:{name:'일반별',base:10,desc:'기본 에너지 +10'},
+big:{name:'대형별',base:30,desc:'큰 에너지 보상. 드물게 보너스/감소 변칙'},
+gold:{name:'금별',base:70,desc:'일시적인 점수 배율. 변칙적으로 배율이 달라짐'},
+rainbow:{name:'무지개별',base:120,desc:'주변 별을 끌어당김. 방향/시간이 변칙적'},
+member:{name:'멤버별',base:250,desc:'멤버 특수효과 발동. 효과 종류가 변칙적'}
+};
+let discovered=JSON.parse(localStorage.getItem('stelliveDiscovered')||'{}');
+let p={x:W/2,y:H-90,r:20,speed:5}; let objs=[]; let particles=[]; let running=true,frame=0; let elapsedFrames=0;
+let effects={mult:1,magnet:0,shield:0,speed:0,reverse:0,chaos:0};
+let combo=0,comboTimer=0,lastSpawn=0,gameOver=false;
+let abilityTimers={eve:0,gold:0};
+function abilityName(){
+ const c=chars.find(x=>x.id===state.character);
+ return c ? c.desc : '기본';
+}
+function refreshAbility(){
+ document.getElementById('ability').textContent='능력: '+abilityName();
+}
+function equipCharacter(id){
+ if(!state.owned.includes(id)) return;
+ state.character=id;
+ abilityTimers={eve:0,gold:0};
+ effects.mult=1; effects.magnet=0; effects.speed=0; effects.reverse=0;
+ save(); refreshAbility(); renderShop(); updateHud();
+ msg((chars.find(c=>c.id===id)?.name||'캐릭터')+' 능력 적용 완료');
+}
+
+function save(){localStorage.setItem('stelliveEnergy',state.energy);localStorage.setItem('stelliveStars',state.stars);localStorage.setItem('stelliveOwned',JSON.stringify(state.owned));localStorage.setItem('stelliveCharacter',state.character);localStorage.setItem('stelliveDiscovered',JSON.stringify(discovered));}
+function msg(t){const e=document.getElementById('msg');e.textContent=t;e.style.display='block';clearTimeout(msg.t);msg.t=setTimeout(()=>e.style.display='none',2200)}
+function openPanel(id){
+ document.querySelectorAll('.panel').forEach(x=>x.classList.remove('show'));
+ const panel=document.getElementById(id);
+ panel.classList.add('show');
+ panel.style.zIndex='1000';
+ document.getElementById('gameOverControls').style.display='none';
+ if(id==='shop')renderShop();
+ if(id==='ency')renderEncy();
+ if(id==='settings')syncTouchSensitivityUI();
+ running=false;
+}
+function closePanels(){
+ document.querySelectorAll('.panel').forEach(x=>x.classList.remove('show'));
+ if(gameOver){
+  running=false;
+  document.getElementById('gameOverControls').style.display='block';
+ }else{
+  running=true;
+  document.getElementById('gameOverControls').style.display='none';
+ }
+}
+function syncTouchSensitivityUI(){
+ const input=document.getElementById('touchSensitivity');
+ const value=document.getElementById('touchSensitivityValue');
+ if(input)input.value=touchSensitivity.toFixed(2);
+ if(value)value.textContent=touchSensitivity.toFixed(2)+'×';
+}
+function setTouchSensitivity(value){
+ touchSensitivity=Math.max(.5,Math.min(3,Number(value)||1));
+ localStorage.setItem('stelliveTouchSensitivity',touchSensitivity.toFixed(2));
+ syncTouchSensitivityUI();
+}
+function restart(){
+ p={x:W/2,y:H-90,r:20,speed:5};objs=[];particles=[];
+ effects={mult:1,magnet:0,shield:0,speed:0,reverse:0,chaos:0};
+ abilityTimers={eve:0,gold:0};combo=0;comboTimer=0;score=0;gameOver=false;running=true;frame=0;elapsedFrames=0;
+ touch.active=false;touch.dx=0;touch.dy=0;
+ document.getElementById('gameOverControls').style.display='none';
+ refreshAbility();
+}
+let score=0;
+
+function renderShop(){
+ const g=document.getElementById('shopGrid');g.innerHTML='';
+ chars.forEach(c=>{
+  const owned=state.owned.includes(c.id), eq=state.character===c.id;
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML=`<div class="shopItem"><b>${c.name}</b><span>${c.price.toLocaleString()} E</span></div><p class="small">${c.desc}</p>`;
+  const b=document.createElement('button');
+  if(eq){b.textContent='장착 중';b.disabled=true}
+  else if(owned){b.textContent='장착';b.onclick=()=>equipCharacter(c.id)}
+  else{b.textContent='구매';b.onclick=()=>buy(c)}
+  d.appendChild(b);g.appendChild(d);
+ });
+}
+function buy(c){
+ if(state.energy<c.price){msg(`에너지가 부족합니다. ${c.name} 구매에는 ${c.price.toLocaleString()} 에너지가 필요합니다.`);return}
+ state.energy-=c.price;if(!state.owned.includes(c.id))state.owned.push(c.id);save();equipCharacter(c.id);msg(`${c.name} 구매 완료 · 특수능력이 적용되었습니다.`);
+}
+function renderEncy(){
+ const g=document.getElementById('encyGrid');g.innerHTML='';
+ Object.entries(starsDef).forEach(([id,d])=>{
+  const seen=discovered[id];const c=document.createElement('div');c.className='card';
+  c.innerHTML=`<b>${d.name}</b><p>${d.desc}</p><p class="small">기본 가치: ${d.base} E<br>변칙: ${seen?seen:'아직 발견되지 않음'}</p>`;
+  g.appendChild(c);
+ });
+}
+function updateHud(){
+ const totalSeconds=Math.floor(elapsedFrames/60);
+ document.getElementById('elapsed').textContent=String(Math.floor(totalSeconds/60)).padStart(2,'0')+':'+String(totalSeconds%60).padStart(2,'0');
+ document.getElementById('score').textContent=Math.floor(score).toLocaleString();
+ document.getElementById('energy').textContent=state.energy.toLocaleString();
+ document.getElementById('stars').textContent=state.stars.toLocaleString();
+ document.getElementById('char').textContent=chars.find(c=>c.id===state.character)?.name||'파스텔';
+ let ef=[];if(effects.mult>1)ef.push('점수 x'+effects.mult.toFixed(1));if(effects.magnet>0)ef.push('자석 '+Math.ceil(effects.magnet/60)+'초');if(effects.shield>0)ef.push('보호막');if(effects.speed>0)ef.push('가속');if(effects.reverse>0)ef.push('반전');if(effects.chaos>0)ef.push('변칙');
+ document.getElementById('effect').textContent=ef.join(' · ')||'효과 없음'; refreshAbility();
+}
+function spawn(){
+ const r=Math.random(), x=40+Math.random()*(W-80);
+ let type='normal';
+ // 특수별 빈도는 낮게 유지
+ if(r<0.0015)type='member';
+ else if(r<0.005)type='rainbow';
+ else if(r<0.018)type='gold';
+ else if(r<0.09)type='big';
+ objs.push({kind:'star',type,x,y:-25,r:type==='normal'?11:16,vy:2.3+Math.random()*1.4,phase:Math.random()*6.28});
+}
+function spawnObstacle(){
+ // 장애물을 한 지점에 몰아넣지 않고 화면 폭과 세로 간격을 두고 분산 생성
+ const pattern=Math.floor(Math.random()*6);
+ const count=Math.random()<.72?1:2; // 한 번에 대부분 1개, 가끔 2개
+ const sizeBase=25+Math.random()*48;
+ const margin= Math.max(38,sizeBase*.65);
+ const lanes=[margin, W*.25, W*.5, W*.75, W-margin]
+  .map(x=>Math.max(margin,Math.min(W-margin,x)));
+ const firstLane=Math.floor(Math.random()*lanes.length);
+ const direction=Math.random()<.5?-1:1;
+ for(let i=0;i<count;i++){
+  // 두 개가 생성될 때는 서로 다른 쪽 레인과 충분한 세로 간격을 사용
+  const laneIndex=count===1?firstLane:(firstLane+i*2+lanes.length)%lanes.length;
+  const size=sizeBase*(.72+Math.random()*.55);
+  const x=Math.max(size/2+4,Math.min(W-size/2-4,lanes[laneIndex]+(Math.random()-.5)*W*.12));
+  const y=-size-25-i*(150+Math.random()*100);
+  const o={kind:'obs',x,y,w:size*(.72+Math.random()*.55),h:size*(.72+Math.random()*.55),
+   r:size*.5,vy:2.7+Math.random()*2.1,rot:Math.random()*6.28,vr:(Math.random()-.5)*.16,
+   pattern,originX:x,amp:25+Math.random()*Math.min(150,W*.23),freq:.018+Math.random()*.035,
+   phase:Math.random()*6.28,driftDir:direction,zig:35+Math.random()*65};
+  objs.push(o);
+ }
+}
+function moveObstacle(o){
+ const t=frame*o.freq+o.phase;
+ if(o.pattern===0){o.x=o.originX+Math.sin(t)*o.amp;}
+ else if(o.pattern===1){o.x=o.originX+Math.sin(t*1.7)*o.amp;}
+ else if(o.pattern===2){o.x=o.originX+Math.sin(t)*o.amp*.65;}
+ else if(o.pattern===3){o.x+=o.driftDir*(1.4+Math.sin(t)*.8);if(o.x<o.w/2||o.x>W-o.w/2)o.driftDir*=-1;}
+ else if(o.pattern===4){o.x=o.originX+Math.sin(t*2.8)*o.zig;}
+ else {o.x=o.originX+Math.sin(t)*o.amp+Math.sin(t*.43)*o.amp*.5;}
+ o.x=Math.max(o.w/2,Math.min(W-o.w/2,o.x));
+ o.rot+=o.vr;
+}
+
+function collect(o){
+ const d=starsDef[o.type]; state.stars++; let gain=d.base; let text=d.name;
+ let roll=Math.random();
+ // 강지는 변칙성의 최악 결과를 일부 완화
+ const riskReduction=state.character==='kangji'?.25:0;
+ if(o.type==='normal'){
+  if(Math.random()<.06){gain*=3;text+=' 변칙: 트리플';}
+ } else if(o.type==='big'){
+  if(roll<.18-riskReduction*.18){gain*=5;text+=' 변칙: 대폭증가';}
+  else if(roll<.32-riskReduction*.12){gain=Math.max(1,Math.floor(gain*.25));text+=' 변칙: 불안정';}
+  else if(roll<.40){effects.shield=300;text+=' 변칙: 보호막';}
+ } else if(o.type==='gold'){
+  if(roll<.20-riskReduction*.12){effects.mult=4;effects.mult=4;setTimeout(()=>effects.mult=1,5000);text+=' 변칙: 점수 x4';}
+  else if(roll<.38){effects.mult=.5;setTimeout(()=>effects.mult=1,3500);text+=' 변칙: 역전';}
+  else {effects.mult=2;setTimeout(()=>effects.mult=1,5500);text+=' 점수 x2';}
+ } else if(o.type==='rainbow'){
+  if(roll<.28-riskReduction*.12){effects.magnet=720;text+=' 변칙: 장기 자석';}
+  else if(roll<.48){effects.magnet=180;effects.speed=180;text+=' 변칙: 폭주';}
+  else if(roll<.60){effects.reverse=180;setTimeout(()=>effects.reverse=0,3000);text+=' 변칙: 조작 반전';}
+  else effects.magnet=420;
+ } else if(o.type==='member'){
+  const rs=Math.floor(Math.random()*5);
+  if(rs===0){effects.mult=5;setTimeout(()=>effects.mult=1,3500);text+=' 변칙: 초대형 보너스';}
+  if(rs===1){effects.shield=600;text+=' 변칙: 장벽';}
+  if(rs===2){effects.magnet=900;text+=' 변칙: 광역흡수';}
+  if(rs===3){effects.speed=600;text+=' 변칙: 초가속';}
+  if(rs===4){gain*=2;effects.mult=2;setTimeout(()=>effects.mult=1,7000);text+=' 변칙: 연쇄폭주';}
+ }
+ if(state.character==='kangji')gain=Math.ceil(gain*1.5);
+ if(state.character==='hina'&&o.type==='normal'&&Math.random()<.25)gain*=2;
+ if(state.character==='yuni')comboTimer=Math.max(comboTimer,480);
+ if(state.character==='huya'&&Math.random()<.35)effects.speed=Math.max(effects.speed,120);
+ if(state.character==='mashiro'&&combo>=5)gain+=Math.min(combo*2,40);
+ if(state.character==='lize'&&o.type!=='normal'){gain=Math.ceil(gain*1.35);text+=' · 리제 보너스';}
+ if(state.character==='shibuki')score+=Math.floor(gain*.25);
+ if(state.character==='rin'&&o.type==='rainbow')effects.magnet=Math.max(effects.magnet,720);
+ if(state.character==='riko'&&o.type==='gold'){
+  effects.mult=Math.max(effects.mult,3);
+  abilityTimers.gold=420;
+}
+ if(state.character==='nana'&&o.type==='member'&&Math.random()<.35){gain+=100;text+=' · 나나 보너스';}
+ state.energy+=Math.floor(gain);score+=Math.floor(gain*effects.mult);combo++;comboTimer=360;
+ discovered[o.type]=text;save();msg(`${text} · +${Math.floor(gain)}E`);
+ burst(o.x,o.y);
+}
+function burst(x,y){for(let i=0;i<10;i++)particles.push({x,y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4,life:35})}
+function hitObstacle(o){
+ if(effects.shield>0){effects.shield=0;burst(o.x,o.y);msg('보호막이 장애물을 막았습니다.');return}
+ if(state.character==='eve' && Math.random()<0.35){
+  burst(o.x,o.y);msg('이브의 능력 발동 · 장애물 무효화');return;
+ }
+ gameOver=true;running=false;save();
+ document.getElementById('gameOverControls').style.display='block';
+ msg('GAME OVER');
+}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function update(){
+ if(!running)return;
+ frame++; elapsedFrames++;
+ if(abilityTimers.gold>0){abilityTimers.gold--;if(abilityTimers.gold===0)effects.mult=1;}
+ if(frame-lastSpawn>30){spawn();lastSpawn=frame}
+ const obstacleInterval=state.character==='tabi'?150:115;
+ if(frame%obstacleInterval===0)spawnObstacle();
+ let dx=0,dy=0;
+ if(keys.ArrowLeft||keys.a)dx--;if(keys.ArrowRight||keys.d)dx++;if(keys.ArrowUp||keys.w)dy--;if(keys.ArrowDown||keys.s)dy++;
+ if(effects.reverse>0){dx=-dx;dy=-dy}
+ const sp=p.speed+(effects.speed>0?3:0)
+ +(state.character==='kanna'&&Math.random()<.015?3:0)
+ +(state.character==='huya'&&Math.random()<.01?2:0);
+ if(touch.active){
+   p.x=Math.max(25,Math.min(W-25,p.x+touch.dx*1.45*touchSensitivity));
+   p.y=Math.max(45,Math.min(H-25,p.y+touch.dy*1.45*touchSensitivity));
+   touch.dx=0;touch.dy=0;
+ }else{
+   p.x=Math.max(25,Math.min(W-25,p.x+dx*sp));
+   p.y=Math.max(45,Math.min(H-25,p.y+dy*sp));
+ }
+ if(effects.magnet>0){
+  effects.magnet--;
+  objs.filter(o=>o.kind==='star').forEach(o=>{let d=dist(p,o);if(d<260){o.x+=(p.x-o.x)*.045;o.y+=(p.y-o.y)*.045}})
+ }
+ ['shield','speed','reverse','chaos'].forEach(k=>{if(effects[k]>0)effects[k]--});
+ if(comboTimer>0)comboTimer--;else combo=0;
+ for(let i=objs.length-1;i>=0;i--){
+  const o=objs[i];o.y+=o.vy;
+  if(o.kind==='obs')moveObstacle(o);
+  if(o.kind==='star'?dist(p,o)<p.r+o.r:(Math.abs(p.x-o.x)<p.r+o.w*.42&&Math.abs(p.y-o.y)<p.r+o.h*.42)){
+   if(o.kind==='star')collect(o);else hitObstacle(o);objs.splice(i,1);continue
+  }
+  if(o.y>H+80)objs.splice(i,1)
+ }
+ particles.forEach(q=>{q.x+=q.vx;q.y+=q.vy;q.life--});particles=particles.filter(q=>q.life>0);
+ updateHud();
+}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ ctx.strokeStyle='rgba(100,130,220,.08)';for(let x=0;x<W;x+=48){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=48){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+ objs.forEach(o=>{
+  if(o.kind==='star'){
+   const col={normal:'#fff',big:'#8fd3ff',gold:'#ffd86b',rainbow:'#ff80d5',member:'#9fffb4'}[o.type];
+   ctx.save();ctx.translate(o.x,o.y);ctx.rotate(Math.sin(frame*.05+o.phase)*.2);ctx.fillStyle=col;ctx.shadowBlur=18;ctx.shadowColor=col;
+   ctx.beginPath();for(let i=0;i<10;i++){let rr=i%2?o.r*.42:o.r;let a=-Math.PI/2+i*Math.PI/5;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}ctx.closePath();ctx.fill();ctx.restore();
+  }else{ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rot);ctx.fillStyle='#a6b0c9';ctx.strokeStyle='#4c5670';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(0,0,o.w/2,o.h/2,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore()}
+ });
+ particles.forEach(q=>{ctx.globalAlpha=q.life/35;ctx.fillStyle='#fff';ctx.fillRect(q.x,q.y,3,3);ctx.globalAlpha=1});
+ ctx.save();ctx.translate(p.x,p.y);ctx.fillStyle=state.character==='kangji'?'#ffb6d5':state.character==='eve'?'#b7d9ff':state.character==='kanna'?'#d5b8ff':'#9ee7ff';ctx.shadowBlur=18;ctx.shadowColor=ctx.fillStyle;
+ ctx.beginPath();ctx.arc(0,0,p.r,0,Math.PI*2);ctx.fill();ctx.fillStyle='#15203c';ctx.beginPath();ctx.arc(-6,-3,3,0,Math.PI*2);ctx.arc(6,-3,3,0,Math.PI*2);ctx.fill();ctx.restore();
+ if(gameOver){ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(0,0,W,H);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 46px system-ui';ctx.fillText('GAME OVER',W/2,H/2);ctx.font='20px system-ui';ctx.fillText('재시작 버튼을 눌러 다시 플레이',W/2,H/2+38)}
+}
+function loop(){update();draw();requestAnimationFrame(loop)}loop();refreshAbility();updateHud();
+
+window.addEventListener('keydown',e=>{keys[e.key]=true;if(e.key==='Escape')closePanels()});
+window.addEventListener('keyup',e=>keys[e.key]=false);
+canvas.addEventListener('pointerdown',e=>{
+ touch.active=true;touch.lastX=e.clientX;touch.lastY=e.clientY;touch.dx=0;touch.dy=0;
+ canvas.setPointerCapture?.(e.pointerId);
+});
+canvas.addEventListener('pointermove',e=>{
+ if(!touch.active)return;
+ const r=canvas.getBoundingClientRect();
+ touch.dx+=(e.clientX-touch.lastX)*W/r.width;
+ touch.dy+=(e.clientY-touch.lastY)*H/r.height;
+ touch.lastX=e.clientX;touch.lastY=e.clientY;
+});
+canvas.addEventListener('pointerup',e=>{
+ touch.active=false;touch.dx=0;touch.dy=0;touch.lastX=0;touch.lastY=0;
+ try{canvas.releasePointerCapture?.(e.pointerId)}catch(_){}
+});
+canvas.addEventListener('pointercancel',()=>{
+ touch.active=false;touch.dx=0;touch.dy=0;touch.lastX=0;touch.lastY=0;
+});
+const sensitivityInput=document.getElementById('touchSensitivity');
+if(sensitivityInput)sensitivityInput.addEventListener('input',e=>setTouchSensitivity(e.target.value));
+syncTouchSensitivityUI();
+</script>
+</body></html>
